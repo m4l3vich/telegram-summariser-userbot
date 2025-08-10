@@ -1,0 +1,32 @@
+{
+  "name": "telegram-summariser",
+  "version": "1.0.0",
+  "description": "",
+  "main": "index.js",
+  "type": "module",
+  "scripts": {
+    "build": "tsc",
+    "dev": "tsx -r dotenv/config src/index.ts",
+    "start": "node -r dotenv/config build/index.js"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "devDependencies": {
+    "@eslint/js": "^9.14.0",
+    "@types/node": "^22.14.1",
+    "eslint": "^9.14.0",
+    "globals": "^15.12.0",
+    "nodemon": "^3.1.7",
+    "tsx": "^4.19.3",
+    "typescript": "^5.6.3",
+    "typescript-eslint": "^8.13.0"
+  },
+  "dependencies": {
+    "@mtcute/html-parser": "^0.25.7",
+    "@mtcute/markdown-parser": "^0.25.7",
+    "@mtcute/node": "^0.22.3",
+    "dotenv": "^16.5.0",
+    "openai": "^5.12.2"
+  }
+}
