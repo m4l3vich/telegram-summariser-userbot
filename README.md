@@ -3,8 +3,8 @@
 todo:
 
 - [ ] README
-- [*] Refactor code
+- [x] Refactor code
 - [ ] Ability to change model
-- [*] Refine the summarising prompt
-- [*] Refine message collection algorithm for model
-- [*] Ability to ask the model something specific for the summary (e.g. `/summary <count> <question>`)
+- [x] Refine the summarising prompt
+- [x] Refine message collection algorithm for model
+- [x] Ability to ask the model something specific for the summary (e.g. `/summary <count> <question>`)
