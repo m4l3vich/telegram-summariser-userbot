@@ -1,4 +1,3 @@
-import fs from 'fs'
 import { SqliteStorage, TelegramClient, Peer } from '@mtcute/node'
 import { html } from '@mtcute/html-parser'
 import { md } from '@mtcute/markdown-parser'
@@ -84,8 +83,6 @@ async function summarise(peer: Peer, limit: number, extraQuery: string = '') {
       `"${extraQuery}"`
     )
   }
-
-  fs.writeFileSync('./messages.json', messageContentLines.join('\n'))
 
   const response = await openai.chat.completions.create({
     model: 'gpt-5-nano',
