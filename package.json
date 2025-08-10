@@ -26,7 +26,9 @@
     "@mtcute/html-parser": "^0.25.7",
     "@mtcute/markdown-parser": "^0.25.7",
     "@mtcute/node": "^0.22.3",
+    "@types/luxon": "^3.7.1",
     "dotenv": "^16.5.0",
+    "luxon": "^3.7.1",
     "openai": "^5.12.2"
   }
 }
