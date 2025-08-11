@@ -25,6 +25,7 @@ function prepareTimestamp(date?: Date | null): string {
 }
 
 function prepareMessageText(msg: Message) {
+  if (msg.isOutgoing && msg.text.startsWith('/summary')) return '(old summary)'
   if (msg.text) return msg.text
   if (msg.action) return `(action ${msg.action.type})`
   if (msg.media) return `(media ${msg.media.type})`
@@ -54,7 +55,7 @@ async function prepareReply(client: TelegramClient, message: Message): Promise<R
 
   return {
     date: prepareTimestamp(replyMsg.date),
-    text: replyMsg.text,
+    text: prepareMessageText(replyMsg),
     sender: {
       id: replyMsg.sender.id.toString(),
       name: replyInfo.sender?.displayName ?? '(unknown)',
@@ -76,9 +77,5 @@ export async function prepareMessages(
   client: TelegramClient,
   messages: Message[]
 ): Promise<PreparedMessage[]> {
-  return Promise.all(
-    messages
-      .filter(msg => !(msg.isOutgoing && msg.text.startsWith('/summary')))
-      .map(msg => prepareMessage(client, msg))
-  )
+  return Promise.all(messages.map(msg => prepareMessage(client, msg)))
 }

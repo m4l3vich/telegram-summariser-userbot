@@ -1,10 +1,11 @@
-import { SqliteStorage, TelegramClient, Peer } from '@mtcute/node'
+import { SqliteStorage, TelegramClient, Message } from '@mtcute/node'
 import { html } from '@mtcute/html-parser'
 import { md } from '@mtcute/markdown-parser'
 import OpenAI from 'openai'
 
 import { fetchMessages } from './fetch-messages.js'
 import { appendMessage } from './utils.js'
+import { readFileSync } from 'fs'
 
 const tgClient = new TelegramClient({
   storage: new SqliteStorage(process.env.SESSION_FILE),
@@ -17,32 +18,15 @@ const openai = new OpenAI({
   baseURL: 'https://bothub.chat/api/v2/openai/v1'
 })
 
-const summPrompt = `You are a chat summariser. Your task is to collect and concisely retell the key events and discussions, while maintaining enough information for the reader to understand the context.
-Rules:
-  - Answer in paragraphs, each containing a sub-topic with brief title, for example:
-    **Subtopic title (start timestamp - end timestamp, ABBREVIATED timezone)**
-    Subtopic summary (no more than 3 sentences, very concise and dry, no details)
-  - When mentioning participants of the chat, you MUST include their names
-  - The summary MUST contain all the important points, in theses
-  - The summary MUST be brief and as concise as possible, highlight only the most important details
-  - The summary MUST be provided in ${process.env.SUMMARY_LANGUAGE} language
-  - The summary MUST be laid out in a dry, concise, facts/statemets only manner, drop ALL non-important details and synonymous/redundant facts
-  - The summary's paragraphs MUST follow the chronological order of the chat history, timestamps can be included in a sub-topic summary
-  - DO NOT mention all non-important info and messages
-  - DO NOT make up any information that was not said by the participants
-  - DO NOT suggest any follow-up steps or append anything of your own at the end
-  - DO NOT mention such terms as "start of the chat history" and "end of the chat history" as the history you're provided with is an arbitrary chunk of the full chat history
-  - DO NOT use complicated and long words for description, prefer shorter ones
-  - The user can provide an additional query for the summary. If you are provided with such a query, answering this query MUST be your first priority, discard answering in paragraphs if needed
-  - Timestamps will be provided to you in the "${
-    process.env.SUMMARY_TIMEZONE || process.env.TZ || 'Europe/Moscow'
-  }" timezone`
+const summaryPrompt = readFileSync(process.env.PROMPT_FILE || 'prompt.txt', 'utf8')
+  .replace('{{ language }}', process.env.SUMMARY_LANGUAGE || 'English')
+  .replace('{{ timezone }}', process.env.SUMMARY_TIMEZONE || process.env.TZ || 'Europe/Moscow')
 
 async function main() {
   tgClient.onNewMessage.add(async msg => {
     if (!msg.isOutgoing || !msg.text.startsWith('/summary')) return
 
-    appendMessage(tgClient, msg, 'Summarising...')
+    appendMessage(tgClient, msg, 'Summarising: Fetching messages...')
 
     try {
       const [limit, ...extraQuery] = msg.text.split(' ').slice(1)
@@ -52,7 +36,7 @@ async function main() {
         limit,
         extraQuery.join(' ')
       )
-      const response = await summarise(msg.chat, Number(limit), extraQuery.join(' '))
+      const response = await summarise(msg, limit, extraQuery.join(' '))
 
       tgClient.log.warn('Summarising finished: chat=%s', msg.chat.id)
       appendMessage(tgClient, msg, response)
@@ -67,14 +51,25 @@ async function main() {
   tgClient.log.warn(`Logged in as ${self.displayName}`)
 }
 
-async function summarise(peer: Peer, limit: number, extraQuery: string = '') {
+async function summarise(message: Message, limit: string, extraQuery: string = '') {
   const start = process.hrtime.bigint()
 
   const messages = await fetchMessages({
     client: tgClient,
-    peer: peer.inputPeer,
+    peer: message.chat.inputPeer,
     limit
   })
+
+  tgClient.log.warn(
+    'Summarising: fetched messages: chat=%s, count=%s',
+    message.chat.id,
+    messages.length
+  )
+  appendMessage(
+    tgClient,
+    message,
+    `Summarising: Got ${messages.length} messages, waiting for model response...`
+  )
 
   const messageContentLines = ['Chat history:', ...messages.map(e => JSON.stringify(e)).reverse()]
   if (extraQuery) {
@@ -84,11 +79,13 @@ async function summarise(peer: Peer, limit: number, extraQuery: string = '') {
     )
   }
 
+  // writeFileSync('messages.json', messageContentLines.join('\n'))
+
   const response = await openai.chat.completions.create({
     model: 'gpt-5-nano',
     reasoning_effort: 'minimal',
     messages: [
-      { role: 'system', content: summPrompt },
+      { role: 'system', content: summaryPrompt },
       { role: 'user', content: messageContentLines.join('\n') }
     ]
   })
