@@ -1,4 +1,4 @@
-import { InputPeerLike, TelegramClient } from '@mtcute/node'
+import { InputPeerLike, Message, TelegramClient } from '@mtcute/node'
 import { PreparedMessage, prepareMessages } from './prepare-messages.js'
 
 interface FetchMessagesParameters {
@@ -24,20 +24,22 @@ export async function fetchMessages({
 
   let pagesToFetch = Math.floor(Number(limit) / 100)
   const messages: PreparedMessage[] = []
-  let lastMsg: { id: number; date: number } | null = null
+  let lastMsg: Message | null = null
 
   do {
     const resp = await client.getHistory(peer, {
       limit: Math.min(Number(limit) - messages.length, 100),
-      offset: lastMsg ?? undefined
+      offset: lastMsg
+        ? { id: lastMsg.id, date: Math.floor(lastMsg.date.getTime() / 1000) }
+        : undefined
     })
 
-    lastMsg = { id: resp.at(-1)!.id, date: Math.floor(resp.at(-1)!.date.getTime() / 1000) }
+    lastMsg = resp.at(-1)!
 
     messages.push(...(await prepareMessages(client, resp)))
 
     pagesToFetch--
-  } while (pagesToFetch > 1)
+  } while (pagesToFetch > 0)
 
   return messages
 }

@@ -60,11 +60,7 @@ async function summarise(message: Message, limit: string, extraQuery: string = '
     limit
   })
 
-  tgClient.log.warn(
-    'Summarising: fetched messages: chat=%s, count=%s',
-    message.chat.id,
-    messages.length
-  )
+  tgClient.log.warn('Done fetching messages: chat=%s, count=%s', message.chat.id, messages.length)
   appendMessage(
     tgClient,
     message,
@@ -105,7 +101,8 @@ async function summarise(message: Message, limit: string, extraQuery: string = '
     <b>Summary:</b> <br />
     <blockquote expandable>${md(modelResp.message.content)}</blockquote>
     <br />
-    ${usageCaps.toFixed(2)} CAPS; ${(Number(end - start) / 1_000_000_000).toFixed(2)}s
+    ${response.model}; ${usageCaps.toFixed(2)} CAPS;
+    ${(Number(end - start) / 1_000_000_000).toFixed(2)}s
   `
 }
 
