@@ -61,11 +61,7 @@ async function summarise(message: Message, limit: string, extraQuery: string = '
   })
 
   tgClient.log.warn('Done fetching messages: chat=%s, count=%s', message.chat.id, messages.length)
-  appendMessage(
-    tgClient,
-    message,
-    `Summarising: Got ${messages.length} messages, waiting for model response...`
-  )
+  appendMessage(tgClient, message, `Summarising: Waiting for model response...`)
 
   const messageContentLines = ['Chat history:', ...messages.map(e => JSON.stringify(e)).reverse()]
   if (extraQuery) {
@@ -95,6 +91,7 @@ async function summarise(message: Message, limit: string, extraQuery: string = '
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const usageCaps = (response.usage as any).cost * 750_000
+  tgClient.log.warn('Got response from the model:', response.usage)
 
   const end = process.hrtime.bigint()
   return html`

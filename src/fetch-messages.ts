@@ -22,7 +22,7 @@ export async function fetchMessages({
   //   return fetch
   // }
 
-  let pagesToFetch = Math.floor(Number(limit) / 100)
+  let pagesToFetch = Math.ceil(Number(limit) / 100)
   const messages: PreparedMessage[] = []
   let lastMsg: Message | null = null
 
