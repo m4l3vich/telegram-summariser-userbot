@@ -72,15 +72,21 @@ async function fetchByCount(
   let pagesToFetch = Math.ceil(count / 100)
   const messages: PreparedMessage[] = []
   let lastMsg: Message | null = null
+  let page = 0
 
   do {
+    page++
+    const batchSize = Math.min(count - messages.length, 100)
+    client.log.warn('fetchByCount: page=%s, batchSize=%s, fetched=%s/%s', page, batchSize, messages.length, count)
+
     const resp = await client.getHistory(chatId, {
-      limit: Math.min(count - messages.length, 100),
+      limit: batchSize,
       offset: lastMsg
         ? { id: lastMsg.id, date: Math.floor(lastMsg.date.getTime() / 1000) }
         : undefined
     })
 
+    client.log.warn('fetchByCount: page=%s returned %s messages', page, resp.length)
     lastMsg = resp.at(-1)!
     messages.push(...(await prepareMessages(client, resp)))
     pagesToFetch--
@@ -96,6 +102,7 @@ async function fetchByDate(
   chatId: InputPeerLike,
   minDate: Date
 ): Promise<PreparedMessage[]> {
+  client.log.warn('fetchByDate: minDate=%s', minDate.toISOString())
   const raw: Message[] = []
 
   for await (const msg of client.iterSearchMessages({
@@ -103,8 +110,12 @@ async function fetchByDate(
     minDate
   })) {
     raw.push(msg)
+    if (raw.length % 100 === 0) {
+      client.log.warn('fetchByDate: fetched %s messages so far...', raw.length)
+    }
   }
 
+  client.log.warn('fetchByDate: total %s raw messages, preparing...', raw.length)
   return prepareMessages(client, raw)
 }
 
@@ -112,6 +123,7 @@ async function fetchSinceLastOutgoing(
   client: TelegramClient,
   chatId: InputPeerLike
 ): Promise<PreparedMessage[]> {
+  client.log.warn('fetchSinceLastOutgoing: searching for last outgoing message...')
   const results = await client.searchMessages({
     chatId,
     fromUser: 'me',
@@ -123,6 +135,7 @@ async function fetchSinceLastOutgoing(
     throw new Error('No outgoing messages found in this chat')
   }
 
+  client.log.warn('fetchSinceLastOutgoing: last outgoing msg id=%s date=%s', lastOutMsg.id, lastOutMsg.date.toISOString())
   return fetchByDate(client, chatId, lastOutMsg.date)
 }
 

@@ -9,6 +9,15 @@ import { appendMessage } from './utils.js'
 import { getModel, getReasoningEffort } from './ai-provider.js'
 import { readFileSync } from 'fs'
 
+process.on('unhandledRejection', (err) => {
+  console.error('Unhandled rejection:', err)
+})
+
+process.on('uncaughtException', (err) => {
+  console.error('Uncaught exception:', err)
+  process.exit(1)
+})
+
 const tgClient = new TelegramClient({
   storage: new SqliteStorage(process.env.SESSION_FILE),
   apiId: Number(process.env.API_ID!),
@@ -64,14 +73,16 @@ async function main() {
 
 async function summarise(message: Message, limit: string, extraQuery: string = '') {
   const start = process.hrtime.bigint()
+  const chatId = message.chat.id
 
+  tgClient.log.warn('Fetching messages: chat=%s, limit=%s', chatId, limit)
   const messages = await fetchMessages({
     client: tgClient,
     chatId: message.chat.inputPeer,
     limit
   })
 
-  tgClient.log.warn('Done fetching messages: chat=%s, count=%s', message.chat.id, messages.length)
+  tgClient.log.warn('Done fetching messages: chat=%s, count=%s', chatId, messages.length)
   appendMessage(tgClient, message, `Summarising: Waiting for model response...`)
 
   const messageContentLines = ['Chat history:', ...messages.map(e => JSON.stringify(e)).reverse()]
@@ -81,6 +92,9 @@ async function summarise(message: Message, limit: string, extraQuery: string = '
       `"${extraQuery}"`
     )
   }
+
+  const inputChars = messageContentLines.join('\n').length
+  tgClient.log.warn('Sending to model: chat=%s, messages=%s, inputChars=%s', chatId, messages.length, inputChars)
 
   const reasoningEffort = getReasoningEffort()
 
@@ -99,23 +113,33 @@ async function summarise(message: Message, limit: string, extraQuery: string = '
       : {})
   })
 
+  tgClient.log.warn(
+    'Model response: chat=%s, model=%s, finishReason=%s, usage=%o',
+    chatId,
+    result.response.modelId,
+    result.finishReason,
+    result.usage
+  )
+
   if (!result.text) {
     tgClient.log.error('Failed to summarise chat: empty response')
     return `Failed. Empty response (finish_reason="${result.finishReason}")`
   }
 
   const { inputTokens, outputTokens } = result.usage
-  tgClient.log.warn('Got response from the model: %o', result.usage)
 
   const usageStr = `${inputTokens ?? '?'}+${outputTokens ?? '?'} tokens`
 
   const end = process.hrtime.bigint()
+  const elapsed = (Number(end - start) / 1_000_000_000).toFixed(2)
+  tgClient.log.warn('Summarisation complete: chat=%s, %ss', chatId, elapsed)
+
   return html`
     <b>Summary:</b> <br />
     <blockquote expandable>${md(result.text)}</blockquote>
     <br />
     ${result.response.modelId}; ${usageStr};
-    ${(Number(end - start) / 1_000_000_000).toFixed(2)}s
+    ${elapsed}s
   `
 }
 
