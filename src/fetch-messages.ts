@@ -97,6 +97,8 @@ async function fetchByCount(
   return messages
 }
 
+const MAX_MESSAGES = 5000
+
 async function fetchByDate(
   client: TelegramClient,
   chatId: InputPeerLike,
@@ -104,18 +106,42 @@ async function fetchByDate(
 ): Promise<PreparedMessage[]> {
   client.log.warn('fetchByDate: minDate=%s', minDate.toISOString())
   const raw: Message[] = []
+  let lastMsg: Message | null = null
+  let page = 0
 
-  for await (const msg of client.iterSearchMessages({
-    chatId,
-    minDate
-  })) {
-    raw.push(msg)
-    if (raw.length % 100 === 0) {
-      client.log.warn('fetchByDate: fetched %s messages so far...', raw.length)
+  while (raw.length < MAX_MESSAGES) {
+    page++
+    const resp = await client.getHistory(chatId, {
+      limit: 100,
+      offset: lastMsg
+        ? { id: lastMsg.id, date: Math.floor(lastMsg.date.getTime() / 1000) }
+        : undefined
+    })
+
+    if (resp.length === 0) break
+
+    let hitBoundary = false
+    for (const msg of resp) {
+      if (msg.date < minDate) {
+        hitBoundary = true
+        break
+      }
+      raw.push(msg)
     }
+
+    client.log.warn('fetchByDate: page=%s, fetched=%s total', page, raw.length)
+
+    if (hitBoundary) break
+    lastMsg = resp.at(-1)!
+
+    await sleep(500)
   }
 
-  client.log.warn('fetchByDate: total %s raw messages, preparing...', raw.length)
+  if (raw.length >= MAX_MESSAGES) {
+    client.log.warn('fetchByDate: hit message cap (%s), stopping', MAX_MESSAGES)
+  }
+
+  client.log.warn('fetchByDate: total %s messages, preparing...', raw.length)
   return prepareMessages(client, raw)
 }
 
