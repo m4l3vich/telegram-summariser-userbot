@@ -1,21 +1,26 @@
-import { SqliteStorage, TelegramClient, Message } from '@mtcute/node'
+import { SqliteStorage, TelegramClient, networkMiddlewares, tl } from '@mtcute/node'
 import { html } from '@mtcute/html-parser'
 import { md } from '@mtcute/markdown-parser'
-import OpenAI from 'openai'
+import { generateText } from 'ai'
+import type { Message } from '@mtcute/node'
 
 import { fetchMessages } from './fetch-messages.js'
 import { appendMessage } from './utils.js'
+import { getModel, getReasoningEffort } from './ai-provider.js'
 import { readFileSync } from 'fs'
 
 const tgClient = new TelegramClient({
   storage: new SqliteStorage(process.env.SESSION_FILE),
   apiId: Number(process.env.API_ID!),
-  apiHash: process.env.API_HASH!
-})
-
-const openai = new OpenAI({
-  apiKey: process.env.BOTHUB_API_KEY,
-  baseURL: 'https://bothub.chat/api/v2/openai/v1'
+  apiHash: process.env.API_HASH!,
+  network: {
+    middlewares: networkMiddlewares.basic({
+      floodWaiter: {
+        maxWait: 60_000,
+        maxRetries: 3
+      }
+    })
+  }
 })
 
 const summaryPrompt = readFileSync(process.env.PROMPT_FILE || 'prompt.txt', 'utf8')
@@ -41,6 +46,11 @@ async function main() {
       tgClient.log.warn('Summarising finished: chat=%s', msg.chat.id)
       appendMessage(tgClient, msg, response)
     } catch (err) {
+      if (tl.RpcError.is(err, 'FLOOD_WAIT_%d')) {
+        tgClient.log.error('Flood wait exceeded: %ds', err.seconds)
+        appendMessage(tgClient, msg, `Failed: Telegram rate limit (${err.seconds}s). Try again later.`)
+        return
+      }
       tgClient.log.error('Failed to summarise chat:')
       console.error(err)
       appendMessage(tgClient, msg, 'Failed. See console (unknown error)')
@@ -56,7 +66,7 @@ async function summarise(message: Message, limit: string, extraQuery: string = '
 
   const messages = await fetchMessages({
     client: tgClient,
-    peer: message.chat.inputPeer,
+    chatId: message.chat.inputPeer,
     limit
   })
 
@@ -71,34 +81,39 @@ async function summarise(message: Message, limit: string, extraQuery: string = '
     )
   }
 
-  // writeFileSync('messages.json', messageContentLines.join('\n'))
+  const reasoningEffort = getReasoningEffort()
 
-  const response = await openai.chat.completions.create({
-    model: 'gpt-5-nano',
-    reasoning_effort: 'minimal',
+  const result = await generateText({
+    model: getModel(),
     messages: [
       { role: 'system', content: summaryPrompt },
       { role: 'user', content: messageContentLines.join('\n') }
-    ]
+    ],
+    ...(reasoningEffort
+      ? {
+          providerOptions: {
+            openai: { reasoningEffort }
+          }
+        }
+      : {})
   })
 
-  const modelResp = response.choices[0]
-  if (!modelResp.message.content) {
-    tgClient.log.error('Failed to summarise chat:')
-    console.dir(response)
-    return `Failed. See console (finish_reason="${modelResp.finish_reason}", refusal="${modelResp.message.refusal}")`
+  if (!result.text) {
+    tgClient.log.error('Failed to summarise chat: empty response')
+    return `Failed. Empty response (finish_reason="${result.finishReason}")`
   }
 
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const usageCaps = (response.usage as any).cost * 750_000
-  tgClient.log.warn('Got response from the model:', response.usage)
+  const { inputTokens, outputTokens } = result.usage
+  tgClient.log.warn('Got response from the model: %o', result.usage)
+
+  const usageStr = `${inputTokens ?? '?'}+${outputTokens ?? '?'} tokens`
 
   const end = process.hrtime.bigint()
   return html`
     <b>Summary:</b> <br />
-    <blockquote expandable>${md(modelResp.message.content)}</blockquote>
+    <blockquote expandable>${md(result.text)}</blockquote>
     <br />
-    ${response.model}; ${usageCaps.toFixed(2)} CAPS;
+    ${result.response.modelId}; ${usageStr};
     ${(Number(end - start) / 1_000_000_000).toFixed(2)}s
   `
 }

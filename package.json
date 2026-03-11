@@ -1,34 +1,38 @@
 {
   "name": "telegram-summariser",
-  "version": "1.0.0",
+  "version": "2.0.0",
   "description": "",
   "main": "index.js",
   "type": "module",
   "scripts": {
     "build": "tsc",
     "dev": "tsx -r dotenv/config src/index.ts",
-    "start": "node -r dotenv/config build/index.js"
+    "start": "node -r dotenv/config build/index.js",
+    "setup": "tsx -r dotenv/config src/setup.ts",
+    "setup:prod": "node -r dotenv/config build/setup.js"
   },
   "keywords": [],
   "author": "",
   "license": "ISC",
   "devDependencies": {
-    "@eslint/js": "^9.14.0",
-    "@types/node": "^22.14.1",
-    "eslint": "^9.14.0",
-    "globals": "^15.12.0",
-    "nodemon": "^3.1.7",
-    "tsx": "^4.19.3",
-    "typescript": "^5.6.3",
-    "typescript-eslint": "^8.13.0"
+    "@eslint/js": "^9.39.4",
+    "@types/node": "^22.19.15",
+    "eslint": "^9.39.4",
+    "globals": "^15.15.0",
+    "nodemon": "^3.1.14",
+    "tsx": "^4.21.0",
+    "typescript": "^5.9.3",
+    "typescript-eslint": "^8.57.0"
   },
   "dependencies": {
-    "@mtcute/html-parser": "^0.25.7",
-    "@mtcute/markdown-parser": "^0.25.7",
-    "@mtcute/node": "^0.22.3",
+    "@ai-sdk/anthropic": "^3.0.58",
+    "@ai-sdk/openai": "^3.0.41",
+    "@mtcute/html-parser": "^0.25.8",
+    "@mtcute/markdown-parser": "^0.25.8",
+    "@mtcute/node": "^0.28.2",
     "@types/luxon": "^3.7.1",
-    "dotenv": "^16.5.0",
-    "luxon": "^3.7.1",
-    "openai": "^5.12.2"
+    "ai": "^6.0.116",
+    "dotenv": "^16.6.1",
+    "luxon": "^3.7.2"
   }
 }
