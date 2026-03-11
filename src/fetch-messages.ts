@@ -11,15 +11,15 @@ interface FetchMessagesParameters {
 type ParsedLimit =
   | { type: 'count'; value: number }
   | { type: 'date'; value: Date }
-  | { type: 'last_out_msg' }
+  | { type: 'lastout' }
 
 const sleep = (ms: number) => new Promise(r => setTimeout(r, ms))
 
 function parseLimit(limit: string): ParsedLimit {
   const zone = process.env.SUMMARY_TIMEZONE || process.env.TZ || 'Europe/Moscow'
 
-  if (limit === 'since:last_out_msg') {
-    return { type: 'last_out_msg' }
+  if (limit === 'since:lastout') {
+    return { type: 'lastout' }
   }
 
   // since:HH:MM — today at that time
@@ -58,7 +58,7 @@ function parseLimit(limit: string): ParsedLimit {
   const count = Number(limit)
   if (isNaN(count) || count <= 0) {
     throw new Error(
-      `Invalid limit: "${limit}". Use a number, since:HH:MM, since:DD-MM-YYYY_HH:MM, last:Nm/Nh/Nd, or since:last_out_msg`
+      `Invalid limit: "${limit}". Use a number, since:HH:MM, since:DD-MM-YYYY_HH:MM, last:Nm/Nh/Nd, or since:lastout`
     )
   }
   return { type: 'count', value: count }
@@ -138,7 +138,7 @@ export async function fetchMessages({
       return fetchByCount(client, chatId, parsed.value)
     case 'date':
       return fetchByDate(client, chatId, parsed.value)
-    case 'last_out_msg':
+    case 'lastout':
       return fetchSinceLastOutgoing(client, chatId)
   }
 }

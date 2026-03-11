@@ -31,10 +31,11 @@ async function main() {
   tgClient.onNewMessage.add(async msg => {
     if (!msg.isOutgoing || !msg.text.startsWith('/summary')) return
 
+    const [limit, ...extraQuery] = msg.text.split(' ').slice(1)
+
     appendMessage(tgClient, msg, 'Summarising: Fetching messages...')
 
     try {
-      const [limit, ...extraQuery] = msg.text.split(' ').slice(1)
       tgClient.log.warn(
         'Begin summarising: chat=%s, limit=%s, query=%s',
         msg.chat.id,
