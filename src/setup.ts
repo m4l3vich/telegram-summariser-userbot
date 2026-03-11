@@ -1,8 +1,10 @@
 import readline from 'node:readline/promises'
-import { writeFileSync, existsSync } from 'node:fs'
+import { writeFileSync, existsSync, mkdirSync } from 'node:fs'
+import { join } from 'node:path'
 import { TelegramClient, SqliteStorage } from '@mtcute/node'
 
 const rl = readline.createInterface({ input: process.stdin, output: process.stdout })
+const dataDir = process.env.DATA_DIR || '.'
 
 const c = {
   reset: '\x1b[0m',
@@ -177,7 +179,8 @@ async function main(): Promise<void> {
     return
   }
 
-  const sessionFile = await ask('Session file path', process.env.SESSION_FILE || 'session.sqlite')
+  const defaultSession = process.env.SESSION_FILE || join(dataDir, 'session.sqlite')
+  const sessionFile = await ask('Session file path', defaultSession)
 
   step(2, '🔐 Telegram Authentication', 'Logging into Telegram...')
 
@@ -230,7 +233,9 @@ async function main(): Promise<void> {
 
   console.log('')
 
-  if (existsSync('.env')) {
+  const envPath = join(dataDir, '.env')
+
+  if (existsSync(envPath)) {
     const overwrite = await ask('⚠️  A .env file already exists. Overwrite? (y/N)', 'N')
     if (overwrite.toLowerCase() !== 'y') {
       info('Skipping .env write.')
@@ -264,8 +269,9 @@ async function main(): Promise<void> {
   lines.push(`PROMPT_FILE=${promptFile}`)
   lines.push('')
 
-  writeFileSync('.env', lines.join('\n'), 'utf8')
-  success('.env file written successfully!')
+  mkdirSync(dataDir, { recursive: true })
+  writeFileSync(envPath, lines.join('\n'), 'utf8')
+  success(`.env file written to ${c.bold}${envPath}${c.reset}`)
 
   console.log('')
   console.log(`  ${c.bgBlue}${c.bold}${c.white}                                            ${c.reset}`)

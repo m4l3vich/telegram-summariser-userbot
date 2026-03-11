@@ -31,10 +31,10 @@ The wizard will walk you through:
 3. Configuring your AI provider and selecting a model
 4. Setting optional preferences (language, timezone, prompt file)
 
-Once setup is complete, start the bot:
+Configuration and session data are written to `./data/` on your host. Once setup is complete, start the bot:
 
 ```sh
-docker run -d --env-file ./data/.env -v ./data:/app m4l3vich/telegram-summariser-userbot
+docker run -d -v ./data:/app/data m4l3vich/telegram-summariser-userbot
 ```
 
 ### From source
@@ -203,15 +203,16 @@ Summarise the following chat messages in {{ language }}. Timestamps are in {{ ti
 ## Docker
 
 ```sh
-# Interactive setup
-docker run -it -v ./data:/app m4l3vich/telegram-summariser-userbot setup
+# Interactive setup (writes .env + session to ./data/)
+docker run -it -v ./data:/app/data m4l3vich/telegram-summariser-userbot setup
 
 # Run the bot
-docker run -d --env-file .env -v ./data:/app m4l3vich/telegram-summariser-userbot
+docker run -d -v ./data:/app/data m4l3vich/telegram-summariser-userbot
 
 # Build locally
 docker build -t telegram-summariser .
-docker run --env-file .env telegram-summariser
+docker run -it -v ./data:/app/data telegram-summariser setup
+docker run -d -v ./data:/app/data telegram-summariser
 ```
 
 ## Development
