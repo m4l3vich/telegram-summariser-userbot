@@ -9,7 +9,7 @@ A Telegram userbot that summarises chat messages using AI.
 - Summarise the last N messages in any chat
 - Summarise messages since a specific time (`since:07:00`, `since:DD-MM-YYYY_HH:MM`)
 - Summarise messages from the last N minutes, hours, or days (`last:5m`, `last:2h`, `last:1d`)
-- Summarise messages since your last outgoing message (`since:lastout`)
+- Summarise messages since your last outgoing message (`since:lastout`), with skip options (`since:lastout-2`, `since:lastout-10m`)
 - Ask a specific question about the chat content alongside the summary
 - Works with any OpenAI-compatible or Anthropic-compatible AI provider
 - Customisable system prompt via a plain text file
@@ -165,6 +165,8 @@ Commands are sent as outgoing messages in any chat.
 | `/summary since:07:00`                  | Messages since 07:00 today                |
 | `/summary since:11-03-2026_07:00`       | Messages since a specific date and time   |
 | `/summary since:lastout`                | Messages since your last outgoing message |
+| `/summary since:lastout-2`              | Skip 2 outgoing messages, summarise from the 3rd |
+| `/summary since:lastout-10m`            | Since last outgoing message older than 10 min |
 | `/summary last:30m`                     | Messages from the last 30 minutes         |
 | `/summary last:2h`                      | Messages from the last 2 hours            |
 | `/summary last:1d`                      | Messages from the last day                |
