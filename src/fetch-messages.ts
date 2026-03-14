@@ -11,15 +11,26 @@ interface FetchMessagesParameters {
 type ParsedLimit =
   | { type: 'count'; value: number }
   | { type: 'date'; value: Date }
-  | { type: 'lastout' }
+  | { type: 'lastout'; skipMessages?: number; skipMinutes?: number }
 
 const sleep = (ms: number) => new Promise(r => setTimeout(r, ms))
 
 function parseLimit(limit: string): ParsedLimit {
   const zone = process.env.SUMMARY_TIMEZONE || process.env.TZ || 'Europe/Moscow'
 
-  if (limit === 'since:lastout') {
-    return { type: 'lastout' }
+  // since:lastout, since:lastout-N (skip N messages), since:lastout-N[mhd] (skip time)
+  const lastoutMatch = limit.match(/^since:lastout(?:-(\d+)([mhd])?)?$/)
+  if (lastoutMatch) {
+    if (!lastoutMatch[1]) {
+      return { type: 'lastout' }
+    }
+    const amount = parseInt(lastoutMatch[1])
+    const unit = lastoutMatch[2]
+    if (unit) {
+      const minutesMap = { m: 1, h: 60, d: 1440 } as const
+      return { type: 'lastout', skipMinutes: amount * minutesMap[unit as keyof typeof minutesMap] }
+    }
+    return { type: 'lastout', skipMessages: amount }
   }
 
   // since:HH:MM — today at that time
@@ -58,7 +69,7 @@ function parseLimit(limit: string): ParsedLimit {
   const count = Number(limit)
   if (isNaN(count) || count <= 0) {
     throw new Error(
-      `Invalid limit: "${limit}". Use a number, since:HH:MM, since:DD-MM-YYYY_HH:MM, last:Nm/Nh/Nd, or since:lastout`
+      `Invalid limit: "${limit}". Use a number, since:HH:MM, since:DD-MM-YYYY_HH:MM, last:Nm/Nh/Nd, since:lastout, since:lastout-N, or since:lastout-N[mhd]`
     )
   }
   return { type: 'count', value: count }
@@ -91,7 +102,7 @@ async function fetchByCount(
     messages.push(...(await prepareMessages(client, resp)))
     pagesToFetch--
 
-    if (pagesToFetch > 0) await sleep(500)
+    if (pagesToFetch > 0) await sleep(200)
   } while (pagesToFetch > 0)
 
   return messages
@@ -134,7 +145,7 @@ async function fetchByDate(
     if (hitBoundary) break
     lastMsg = resp.at(-1)!
 
-    await sleep(500)
+    await sleep(200)
   }
 
   if (raw.length >= MAX_MESSAGES) {
@@ -147,22 +158,39 @@ async function fetchByDate(
 
 async function fetchSinceLastOutgoing(
   client: TelegramClient,
-  chatId: InputPeerLike
+  chatId: InputPeerLike,
+  options: { skipMessages?: number; skipMinutes?: number } = {}
 ): Promise<PreparedMessage[]> {
-  client.log.warn('fetchSinceLastOutgoing: searching for last outgoing message...')
+  const { skipMessages = 0, skipMinutes } = options
+
+  const fetchLimit = Math.max(10, skipMessages + 5)
+  client.log.warn('fetchSinceLastOutgoing: searching outgoing messages (fetchLimit=%s, skip=%s, skipMin=%s)', fetchLimit, skipMessages, skipMinutes ?? 'none')
+
   const results = await client.searchMessages({
     chatId,
     fromUser: 'me',
-    limit: 1
+    limit: fetchLimit
   })
 
-  const lastOutMsg = results[0]
-  if (!lastOutMsg) {
-    throw new Error('No outgoing messages found in this chat')
+  const outgoing = results.filter(msg => !msg.text.startsWith('/summary'))
+
+  let targetMsg: Message | undefined
+
+  if (skipMinutes != null) {
+    const cutoff = new Date(Date.now() - skipMinutes * 60_000)
+    targetMsg = outgoing.find(msg => msg.date < cutoff)
+    if (!targetMsg) {
+      throw new Error(`No outgoing messages found older than ${skipMinutes} minutes`)
+    }
+  } else {
+    targetMsg = outgoing[skipMessages]
+    if (!targetMsg) {
+      throw new Error(`Not enough outgoing messages to skip ${skipMessages} (found ${outgoing.length})`)
+    }
   }
 
-  client.log.warn('fetchSinceLastOutgoing: last outgoing msg id=%s date=%s', lastOutMsg.id, lastOutMsg.date.toISOString())
-  return fetchByDate(client, chatId, lastOutMsg.date)
+  client.log.warn('fetchSinceLastOutgoing: target msg id=%s date=%s', targetMsg.id, targetMsg.date.toISOString())
+  return fetchByDate(client, chatId, targetMsg.date)
 }
 
 export async function fetchMessages({
@@ -178,6 +206,9 @@ export async function fetchMessages({
     case 'date':
       return fetchByDate(client, chatId, parsed.value)
     case 'lastout':
-      return fetchSinceLastOutgoing(client, chatId)
+      return fetchSinceLastOutgoing(client, chatId, {
+        skipMessages: parsed.skipMessages,
+        skipMinutes: parsed.skipMinutes
+      })
   }
 }
