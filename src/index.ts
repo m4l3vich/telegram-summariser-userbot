@@ -100,6 +100,7 @@ async function summarise(message: Message, limit: string, extraQuery: string = '
 
   const result = await generateText({
     model: getModel(),
+    maxOutputTokens: 1024,
     messages: [
       { role: 'system', content: summaryPrompt },
       { role: 'user', content: messageContentLines.join('\n') }
